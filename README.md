@@ -10,15 +10,4 @@ This plugin for [Superpowers, the extensible HTML5 2D+3D game engine](http://spa
 Rename the folder if you want then move it inside `app/plugins/ralmn/`.
 
 Finally restart your server.
-
-## Script usage
-
-``` 
-  var txt = Sup.getActor('TextActor');
-    txt.textRenderer.setText("Hello");
-    txt.textRenderer.setTextColor("rgba(255,0,0,1)");
-    txt.textRenderer.setFont("Arial");
-    txt.textRenderer.setFontSize(32);
-    
-  
-```
+ 
