@@ -14847,21 +14847,20 @@ module.exports = ServerScriptAsset = (function(superClass) {
     if (this.child != null) {
       this.child.kill("SIGHUP");
     }
-    console.log(__dirname + "../run");
-    this.child = child_process.fork(__dirname + "../run.js", [], {
-      silent: false
+    this.child = child_process.fork(__dirname + "/../run.js", [], {
+      silent: true
     });
     if (((ref4 = this.child) != null ? ref4.stdout : void 0) != null) {
-      this.child.send({
-        action: 'start',
-        code: code
-      });
-      callback("Script started !");
       this.child.stdout.on('data', (function(_this) {
         return function(data) {
           return client.socket.emit("stdout:" + _this.id, data.toString());
         };
       })(this));
+      this.child.send({
+        action: 'start',
+        code: code
+      });
+      callback("Script started !");
     } else {
       callback("Starting error");
     }
