@@ -23,5 +23,5 @@ SupAPI.registerPlugin('typescript-server', 'node', {
 });
 
 SupAPI.registerPlugin 'typescript-server', 'lib', {
-  defs: fs.readFileSync "#{__dirname}/../../../sparklinlabs/typescript/api/lib.d.ts", encoding: 'utf8'
+  defs: fs.readFileSync "#{__dirname}/../../../sparklinlabs/typescript/api/lib.d.ts.txt", encoding: 'utf8'
 }

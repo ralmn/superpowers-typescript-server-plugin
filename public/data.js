@@ -14401,7 +14401,9 @@ module.exports = function(arr, obj){
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],13:[function(require,module,exports){
+(function (__dirname){
 var OT, ServerScriptAsset, _, actorComponentAccessors, async, child_process, combine, compileTypeScript, convert, fs, globalDefs, path, plugin, pluginName, plugins, serverRequire, ts, vm,
+  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
 
@@ -14458,6 +14460,7 @@ module.exports = ServerScriptAsset = (function(superClass) {
   };
 
   function ServerScriptAsset(id, pub, serverData) {
+    this.server_buildScript = bind(this.server_buildScript, this);
     this.document = new OT.Document;
     ServerScriptAsset.__super__.constructor.call(this, id, pub, this.constructor.schema, serverData);
   }
@@ -14749,7 +14752,7 @@ module.exports = ServerScriptAsset = (function(superClass) {
   };
 
   ServerScriptAsset.prototype.server_buildScript = function(client, callback) {
-    var code, combinedSourceMap, comment, concatenatedGlobalDefs, convertedSourceMap, def, error, errorstr, file, getLineCounts, globalNames, globals, j, jsGlobals, k, l, len, len1, len2, line, name, ref, ref1, ref2, ref3, results, scriptNames, scripts;
+    var code, combinedSourceMap, comment, concatenatedGlobalDefs, convertedSourceMap, def, error, errorstr, file, getLineCounts, globalNames, globals, j, jsGlobals, k, l, len, len1, len2, line, name, ref, ref1, ref2, ref3, ref4, results, scriptNames, scripts;
     console.log("Compiling scripts...");
     globalNames = [];
     globals = {};
@@ -14844,20 +14847,24 @@ module.exports = ServerScriptAsset = (function(superClass) {
     if (this.child != null) {
       this.child.kill("SIGHUP");
     }
-    this.child = child_process.fork("./run.coffee", [], {
-      silent: true
+    console.log(__dirname + "../run");
+    this.child = child_process.fork(__dirname + "../run.js", [], {
+      silent: false
     });
-    this.child.send({
-      action: 'start',
-      code: code
-    });
-    callback("Script started !");
-    this.child.stdout.on('data', (function(_this) {
-      return function(data) {
-        client.socket.emit("stdout:" + _this.id, data.toString());
-        return console.log(("stdout:" + _this.id + " :") + data);
-      };
-    })(this));
+    if (((ref4 = this.child) != null ? ref4.stdout : void 0) != null) {
+      this.child.send({
+        action: 'start',
+        code: code
+      });
+      callback("Script started !");
+      this.child.stdout.on('data', (function(_this) {
+        return function(data) {
+          return client.socket.emit("stdout:" + _this.id, data.toString());
+        };
+      })(this));
+    } else {
+      callback("Starting error");
+    }
   };
 
   ServerScriptAsset.prototype.client_buildScript = function() {};
@@ -14880,6 +14887,7 @@ module.exports = ServerScriptAsset = (function(superClass) {
 
 
 
+}).call(this,"/data")
 },{"async":2,"child_process":3,"combine-source-map":14,"convert-source-map":42,"lodash":12,"operational-transform":43,"path":8,"vm":10}],14:[function(require,module,exports){
 'use strict';
 

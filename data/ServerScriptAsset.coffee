@@ -240,7 +240,7 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
     @pub.text = @pub.draft
     return
 
-  server_buildScript: (client, callback) ->
+  server_buildScript: (client, callback) =>
     console.log "Compiling scripts..."
     globalNames = []
     globals = {}
@@ -310,12 +310,14 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
 
     if @child?
       @child.kill("SIGHUP")
-    @child = child_process.fork("./run.coffee", [], {silent: true})
-    @child.send({action: 'start', code: code})
-    callback "Script started !"
-    @child.stdout.on 'data', (data) =>
-      client.socket.emit "stdout:#{@id}", data.toString()
-      console.log("stdout:#{@id} :"+data);
+    @child = child_process.fork(__dirname + "/../run.js", [], {silent: true})
+    if @child?.stdout?
+      @child.stdout.on 'data', (data) =>
+        client.socket.emit "stdout:#{@id}", data.toString()
+      @child.send({action: 'start', code: code})
+      callback "Script started !"
+    else
+      callback "Starting error"
     return
   client_buildScript: ->
     return
