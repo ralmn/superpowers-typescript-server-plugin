@@ -174,43 +174,7 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
       if ownErrors.length > 0 then finish ownErrors; return
 
       libSourceFile = results.program.getSourceFile("lib.d.ts")
-
-
-      behaviors = {}
-      for symbolName, symbol of results.program.getSourceFile(ownScriptName).locals
-        continue if (symbol.flags & ts.SymbolFlags.Class) != ts.SymbolFlags.Class
-
-        baseTypeNode = ts.getClassBaseTypeNode(symbol.valueDeclaration)
-        continue if ! baseTypeNode?
-
-        typeSymbol = results.typeChecker.getSymbolAtLocation baseTypeNode.typeName
-        continue if typeSymbol != supTypeSymbols["Sup.Behavior"]
-
-        properties = behaviors[symbolName] = []
-
-        for memberName, member of symbol.members
-          # Skip non-properties
-          continue if (member.flags & ts.SymbolFlags.Property) != ts.SymbolFlags.Property
-
-          # Skip static, private and protected members
-          modifierFlags = member.valueDeclaration.modifiers?.flags
-          continue if modifierFlags? and (modifierFlags & (ts.NodeFlags.Private | ts.NodeFlags.Protected | ts.NodeFlags.Static)) != 0
-
-          # TODO: skip members annotated as "non-customizable"
-
-          type = results.typeChecker.getTypeAtLocation(member.valueDeclaration)
-          typeName = null # "unknown"
-          symbol = type.getSymbol()
-          if type.intrinsicName?
-            typeName = type.intrinsicName
-
-          if typeName?
-            properties.push { name: memberName, type: typeName }
-
-      @serverData.resources.acquire 'behaviorProperties', null, (err, behaviorProperties) =>
-        behaviorProperties.setScriptBehaviors @id, behaviors
-        @serverData.resources.release 'behaviorProperties', null
-        finish []; return
+      finish []
       return
 
     remainingAssetsToLoad = Object.keys(@serverData.entries.byId).length
@@ -244,7 +208,7 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
     console.log "Compiling scripts..."
     globalNames = []
     globals = {}
-    globalDefs = {}
+    globalBuildDefs = {}
 
     scriptNames = []
     scripts = {}
@@ -257,7 +221,7 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
         globals["#{pluginName}.ts"] = plugin.code
 
       if plugin.defs?
-        globalDefs["#{pluginName}.d.ts"] = plugin.defs
+        globalBuildDefs["#{pluginName}.d.ts"] = plugin.defs
 
     globalNames.push "server-script.ts"
     globals["server-script.ts"] = @pub.text
@@ -265,7 +229,7 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
     # Make sure the Sup namespace is compiled before everything else
     # globalNames.unshift globalNames.splice(globalNames.indexOf('Sup.ts'), 1)[0]
     # Compile plugin globals
-    jsGlobals = compileTypeScript globalNames, globals, "#{globalDefs["lib.d.ts"]}\n#{globalDefs["node.d.ts"]}\ndeclare var console, SupEngine, SupRuntime, ioServer", sourceMap: false
+    jsGlobals = compileTypeScript globalNames, globals, "#{globalBuildDefs["lib.d.ts"]}\n#{globalBuildDefs["node.d.ts"]}\ndeclare var console, SupEngine, SupRuntime, ioServer", sourceMap: false
     if jsGlobals.errors.length > 0
       errorstr= ["error1"]
       for error in jsGlobals.errors
@@ -275,8 +239,8 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
       callback(errorstr); return
 
     # Compile game scripts
-    concatenatedGlobalDefs = (def for name, def of globalDefs).join ''
-    results = compileTypeScript scriptNames, scripts, concatenatedGlobalDefs, sourceMap: true
+    concatenatedGlobalBuildDefs = (def for name, def of globalBuildDefs).join ''
+    results = compileTypeScript scriptNames, scripts, concatenatedGlobalBuildDefs, sourceMap: true
     if results.errors.length > 0
       errorstr= ["error2"]
       for error in results.errors
@@ -326,7 +290,7 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
     return
   server_killScript: (client, callback) ->
     if @child?
-      client.socket.emit "stdout:#{@id}", "Kill by user"
+      client.socket.emit "script-status:#{@id}", "Kill by user"
       @child.kill("SIGHUP")
       callback null
     else
