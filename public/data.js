@@ -14708,7 +14708,7 @@ module.exports = ServerScriptAsset = (function(superClass) {
   };
 
   ServerScriptAsset.prototype.server_buildScript = function(client, callback) {
-    var assetsLoading, combinedSourceMap, comment, compile, concatenatedGlobalBuildDefs, convertedSourceMap, def, error, errorstr, file, getLineCounts, globalBuildDefs, globalNames, globals, j, jsGlobals, k, l, len, len1, len2, line, name, ref, ref1, ref2, ref3, remainingAssetsToLoad, results, scriptNames, scripts, scriptsCode;
+    var allGlobals, assetsLoading, combinedSourceMap, comment, compile, concatenatedGlobalBuildDefs, convertedSourceMap, def, error, errorstr, file, getLineCounts, globalBuildDefs, globalNames, globals, j, jsGlobals, k, l, len, len1, len2, line, name, ref, ref1, ref2, ref3, remainingAssetsToLoad, results, scriptNames, scripts, scriptsCode;
     console.log("Compiling scripts...");
     globalNames = [];
     globals = {};
@@ -14729,7 +14729,8 @@ module.exports = ServerScriptAsset = (function(superClass) {
         globalBuildDefs[pluginName + ".d.ts"] = plugin.defs;
       }
     }
-    jsGlobals = compileTypeScript(globalNames, globals, globalBuildDefs["lib.d.ts"] + "\n" + globalBuildDefs["node.d.ts"] + "\ndeclare var console, SupEngine, SupRuntime, ioServer", {
+    allGlobals = globalBuildDefs["lib.d.ts"] + "\n" + globalBuildDefs["node.d.ts"] + "\ndeclare var console, SupEngine, SupRuntime, ioServer";
+    jsGlobals = compileTypeScript(globalNames, globals, allGlobals, {
       sourceMap: false
     });
     if (jsGlobals.errors.length > 0) {
@@ -14796,15 +14797,32 @@ module.exports = ServerScriptAsset = (function(superClass) {
     }
     convertedSourceMap = convert.fromBase64(combinedSourceMap.base64()).toObject();
     compile = (function(_this) {
-      return function(code) {
-        var ref4;
+      return function(files) {
+        var code, cscripts, cscriptsName, len3, m, ref4, ref5;
+        cscriptsName = Object.keys(files);
+        cscripts = files;
+        results = compileTypeScript(cscriptsName, cscripts, concatenatedGlobalBuildDefs, {
+          sourceMap: false
+        });
+        if (results.errors.length > 0) {
+          errorstr = [];
+          ref4 = results.errors;
+          for (m = 0, len3 = ref4.length; m < len3; m++) {
+            error = ref4[m];
+            errorstr.push(error.file + "(" + error.position.line + "): " + error.message + "\n");
+          }
+          callback(errorstr);
+          return;
+        }
+        console.log(results);
+        code = jsGlobals.script + results.script;
         if (_this.child != null) {
           _this.child.kill("SIGHUP");
         }
         _this.child = child_process.fork(__dirname + "/../run.js", [], {
           silent: true
         });
-        if (((ref4 = _this.child) != null ? ref4.stdout : void 0) != null) {
+        if (((ref5 = _this.child) != null ? ref5.stdout : void 0) != null) {
           _this.child.stdout.on('data', function(data) {
             return client.socket.emit("stdout:" + _this.id, data.toString());
           });
@@ -14821,27 +14839,24 @@ module.exports = ServerScriptAsset = (function(superClass) {
         }
       };
     })(this);
-    scriptsCode = [];
+    scriptsCode = {};
     remainingAssetsToLoad = Object.keys(this.serverData.entries.byId).length;
     assetsLoading = 0;
     this.serverData.entries.walk((function(_this) {
       return function(entry) {
-        var code;
         remainingAssetsToLoad--;
         if (entry.type !== 'server-script') {
           if (remainingAssetsToLoad === 0 && assetsLoading === 0) {
-            code = jsGlobals.script + scriptsCode.join('\n');
-            compile(code);
+            compile(scriptsCode);
           }
           return;
         }
         assetsLoading++;
         return _this.serverData.assets.acquire(entry.id, null, function(err, asset) {
           assetsLoading--;
-          scriptsCode.push(asset.pub.text);
+          scriptsCode[entry.name + '.ts'] = asset.pub.text;
           if (remainingAssetsToLoad === 0 && assetsLoading === 0) {
-            code = jsGlobals.script + scriptsCode.join('\n');
-            return compile(code);
+            return compile(scriptsCode);
           }
         });
       };

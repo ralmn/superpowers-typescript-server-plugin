@@ -229,7 +229,8 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
     # Make sure the Sup namespace is compiled before everything else
     # globalNames.unshift globalNames.splice(globalNames.indexOf('Sup.ts'), 1)[0]
     # Compile plugin globals
-    jsGlobals = compileTypeScript globalNames, globals, "#{globalBuildDefs["lib.d.ts"]}\n#{globalBuildDefs["node.d.ts"]}\ndeclare var console, SupEngine, SupRuntime, ioServer", sourceMap: false
+    allGlobals = "#{globalBuildDefs["lib.d.ts"]}\n#{globalBuildDefs["node.d.ts"]}\ndeclare var console, SupEngine, SupRuntime, ioServer"
+    jsGlobals = compileTypeScript globalNames, globals, allGlobals, sourceMap: false
     if jsGlobals.errors.length > 0
       errorstr= []
       for error in jsGlobals.errors
@@ -268,9 +269,22 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
     convertedSourceMap = convert.fromBase64(combinedSourceMap.base64()).toObject();
 
 
-    compile = (code) =>
+    compile = (files) =>
+      cscriptsName = Object.keys(files)
+      cscripts = files
+      results = compileTypeScript cscriptsName, cscripts, concatenatedGlobalBuildDefs, sourceMap: false
+      if results.errors.length > 0
+        errorstr= []
+        for error in results.errors
+          errorstr.push "#{error.file}(#{error.position.line}): #{error.message}\n"
+        callback(errorstr)
+        return
+      console.log results      
+      code = jsGlobals.script + results.script
+      # console.log code
       if @child?
         @child.kill("SIGHUP")
+
       @child = child_process.fork(__dirname + "/../run.js", [], {silent: true})
       if @child?.stdout?
         @child.stdout.on 'data', (data) =>
@@ -283,7 +297,7 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
       else
         callback "Starting error"
 
-    scriptsCode = []
+    scriptsCode = {}
     remainingAssetsToLoad = Object.keys(@serverData.entries.byId).length
     assetsLoading = 0
 
@@ -291,16 +305,14 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
       remainingAssetsToLoad--
       if entry.type != 'server-script'
         if remainingAssetsToLoad == 0 and assetsLoading == 0
-          code = jsGlobals.script + scriptsCode.join '\n'
-          compile(code) 
+          compile(scriptsCode) 
         return 
       assetsLoading++
       @serverData.assets.acquire entry.id, null, (err, asset) =>
         assetsLoading--
-        scriptsCode.push(asset.pub.text)
+        scriptsCode[entry.name+ '.ts'] = asset.pub.text
         if remainingAssetsToLoad == 0 and assetsLoading == 0
-          code = jsGlobals.script + scriptsCode.join '\n'
-          compile(code) 
+          compile(scriptsCode) 
 
     #code = jsGlobals.script + scriptsCode.join '\n'#results.script #+ "\n//# sourceMappingURL=#{url}"
 
