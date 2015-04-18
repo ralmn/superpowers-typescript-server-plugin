@@ -223,18 +223,17 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
       if plugin.defs?
         globalBuildDefs["#{pluginName}.d.ts"] = plugin.defs
 
-    globalNames.push "server-script.ts"
-    globals["server-script.ts"] = @pub.text
+    # globalNames.push "server-script.ts"
+    # globals["server-script.ts"] = @pub.text
 
     # Make sure the Sup namespace is compiled before everything else
     # globalNames.unshift globalNames.splice(globalNames.indexOf('Sup.ts'), 1)[0]
     # Compile plugin globals
     jsGlobals = compileTypeScript globalNames, globals, "#{globalBuildDefs["lib.d.ts"]}\n#{globalBuildDefs["node.d.ts"]}\ndeclare var console, SupEngine, SupRuntime, ioServer", sourceMap: false
     if jsGlobals.errors.length > 0
-      errorstr= ["error1"]
+      errorstr= []
       for error in jsGlobals.errors
         errorstr.push "#{error.file}(#{error.position.line}): #{error.message}"
-        console.log "#{error.file}(#{error.position.line}): #{error.message}"
 
       callback(errorstr); return
 
@@ -242,10 +241,9 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
     concatenatedGlobalBuildDefs = (def for name, def of globalBuildDefs).join ''
     results = compileTypeScript scriptNames, scripts, concatenatedGlobalBuildDefs, sourceMap: true
     if results.errors.length > 0
-      errorstr= ["error2"]
+      errorstr= []
       for error in results.errors
         errorstr.push "#{error.file}(#{error.position.line}): #{error.message}\n"
-        console.log "#{error.file}(#{error.position.line}): #{error.message}"
 
       callback(errorstr); return
 
@@ -268,20 +266,47 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
       line += ( getLineCounts( file.text ) )
 
     convertedSourceMap = convert.fromBase64(combinedSourceMap.base64()).toObject();
-    # url = URL.createObjectURL(new Blob([ JSON.stringify(convertedSourceMap) ]));
-    code = jsGlobals.script + results.script #+ "\n//# sourceMappingURL=#{url}"
-    # code = "var ioSever = require('socket.io'); " +code;
 
-    if @child?
-      @child.kill("SIGHUP")
-    @child = child_process.fork(__dirname + "/../run.js", [], {silent: true})
-    if @child?.stdout?
-      @child.stdout.on 'data', (data) =>
-        client.socket.emit "stdout:#{@id}", data.toString()
-      @child.send({action: 'start', code: code})
-      callback "Script started !"
-    else
-      callback "Starting error"
+
+    compile = (code) =>
+      if @child?
+        @child.kill("SIGHUP")
+      @child = child_process.fork(__dirname + "/../run.js", [], {silent: true})
+      if @child?.stdout?
+        @child.stdout.on 'data', (data) =>
+          client.socket.emit "stdout:#{@id}", data.toString()
+
+        @child.stderr.on 'data', (data) =>
+          client.socket.emit "stderr:#{@id}", data.toString()
+        @child.send({action: 'start', code: code})
+        callback "Script started !"
+      else
+        callback "Starting error"
+
+    scriptsCode = []
+    remainingAssetsToLoad = Object.keys(@serverData.entries.byId).length
+    assetsLoading = 0
+
+    @serverData.entries.walk (entry) =>
+      remainingAssetsToLoad--
+      if entry.type != 'server-script'
+        if remainingAssetsToLoad == 0 and assetsLoading == 0
+          code = jsGlobals.script + scriptsCode.join '\n'
+          compile(code) 
+        return 
+      assetsLoading++
+      @serverData.assets.acquire entry.id, null, (err, asset) =>
+        assetsLoading--
+        scriptsCode.push(asset.pub.text)
+        if remainingAssetsToLoad == 0 and assetsLoading == 0
+          code = jsGlobals.script + scriptsCode.join '\n'
+          compile(code) 
+
+    #code = jsGlobals.script + scriptsCode.join '\n'#results.script #+ "\n//# sourceMappingURL=#{url}"
+
+
+
+    
     return
   client_buildScript: ->
     return

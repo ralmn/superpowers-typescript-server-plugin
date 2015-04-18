@@ -14708,7 +14708,7 @@ module.exports = ServerScriptAsset = (function(superClass) {
   };
 
   ServerScriptAsset.prototype.server_buildScript = function(client, callback) {
-    var code, combinedSourceMap, comment, concatenatedGlobalBuildDefs, convertedSourceMap, def, error, errorstr, file, getLineCounts, globalBuildDefs, globalNames, globals, j, jsGlobals, k, l, len, len1, len2, line, name, ref, ref1, ref2, ref3, ref4, results, scriptNames, scripts;
+    var assetsLoading, combinedSourceMap, comment, compile, concatenatedGlobalBuildDefs, convertedSourceMap, def, error, errorstr, file, getLineCounts, globalBuildDefs, globalNames, globals, j, jsGlobals, k, l, len, len1, len2, line, name, ref, ref1, ref2, ref3, remainingAssetsToLoad, results, scriptNames, scripts, scriptsCode;
     console.log("Compiling scripts...");
     globalNames = [];
     globals = {};
@@ -14729,18 +14729,15 @@ module.exports = ServerScriptAsset = (function(superClass) {
         globalBuildDefs[pluginName + ".d.ts"] = plugin.defs;
       }
     }
-    globalNames.push("server-script.ts");
-    globals["server-script.ts"] = this.pub.text;
     jsGlobals = compileTypeScript(globalNames, globals, globalBuildDefs["lib.d.ts"] + "\n" + globalBuildDefs["node.d.ts"] + "\ndeclare var console, SupEngine, SupRuntime, ioServer", {
       sourceMap: false
     });
     if (jsGlobals.errors.length > 0) {
-      errorstr = ["error1"];
+      errorstr = [];
       ref1 = jsGlobals.errors;
       for (j = 0, len = ref1.length; j < len; j++) {
         error = ref1[j];
         errorstr.push(error.file + "(" + error.position.line + "): " + error.message);
-        console.log(error.file + "(" + error.position.line + "): " + error.message);
       }
       callback(errorstr);
       return;
@@ -14758,12 +14755,11 @@ module.exports = ServerScriptAsset = (function(superClass) {
       sourceMap: true
     });
     if (results.errors.length > 0) {
-      errorstr = ["error2"];
+      errorstr = [];
       ref2 = results.errors;
       for (k = 0, len1 = ref2.length; k < len1; k++) {
         error = ref2[k];
         errorstr.push(error.file + "(" + error.position.line + "): " + error.message + "\n");
-        console.log(error.file + "(" + error.position.line + "): " + error.message);
       }
       callback(errorstr);
       return;
@@ -14799,27 +14795,57 @@ module.exports = ServerScriptAsset = (function(superClass) {
       line += getLineCounts(file.text);
     }
     convertedSourceMap = convert.fromBase64(combinedSourceMap.base64()).toObject();
-    code = jsGlobals.script + results.script;
-    if (this.child != null) {
-      this.child.kill("SIGHUP");
-    }
-    this.child = child_process.fork(__dirname + "/../run.js", [], {
-      silent: true
-    });
-    if (((ref4 = this.child) != null ? ref4.stdout : void 0) != null) {
-      this.child.stdout.on('data', (function(_this) {
-        return function(data) {
-          return client.socket.emit("stdout:" + _this.id, data.toString());
-        };
-      })(this));
-      this.child.send({
-        action: 'start',
-        code: code
-      });
-      callback("Script started !");
-    } else {
-      callback("Starting error");
-    }
+    compile = (function(_this) {
+      return function(code) {
+        var ref4;
+        if (_this.child != null) {
+          _this.child.kill("SIGHUP");
+        }
+        _this.child = child_process.fork(__dirname + "/../run.js", [], {
+          silent: true
+        });
+        if (((ref4 = _this.child) != null ? ref4.stdout : void 0) != null) {
+          _this.child.stdout.on('data', function(data) {
+            return client.socket.emit("stdout:" + _this.id, data.toString());
+          });
+          _this.child.stderr.on('data', function(data) {
+            return client.socket.emit("stderr:" + _this.id, data.toString());
+          });
+          _this.child.send({
+            action: 'start',
+            code: code
+          });
+          return callback("Script started !");
+        } else {
+          return callback("Starting error");
+        }
+      };
+    })(this);
+    scriptsCode = [];
+    remainingAssetsToLoad = Object.keys(this.serverData.entries.byId).length;
+    assetsLoading = 0;
+    this.serverData.entries.walk((function(_this) {
+      return function(entry) {
+        var code;
+        remainingAssetsToLoad--;
+        if (entry.type !== 'server-script') {
+          if (remainingAssetsToLoad === 0 && assetsLoading === 0) {
+            code = jsGlobals.script + scriptsCode.join('\n');
+            compile(code);
+          }
+          return;
+        }
+        assetsLoading++;
+        return _this.serverData.assets.acquire(entry.id, null, function(err, asset) {
+          assetsLoading--;
+          scriptsCode.push(asset.pub.text);
+          if (remainingAssetsToLoad === 0 && assetsLoading === 0) {
+            code = jsGlobals.script + scriptsCode.join('\n');
+            return compile(code);
+          }
+        });
+      };
+    })(this));
   };
 
   ServerScriptAsset.prototype.client_buildScript = function() {};
