@@ -272,7 +272,7 @@ module.exports = class ServerScriptAsset extends SupCore.data.base.Asset
     compile = (files) =>
       cscriptsName = Object.keys(files)
       cscripts = files
-      results = compileTypeScript cscriptsName, cscripts, concatenatedGlobalBuildDefs, sourceMap: false
+      results = compileTypeScript cscriptsName, cscripts, concatenatedGlobalBuildDefs+ "declare var console", sourceMap: false
       if results.errors.length > 0
         errorstr= []
         for error in results.errors
