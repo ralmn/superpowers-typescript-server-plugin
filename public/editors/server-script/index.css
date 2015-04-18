@@ -1,4 +1,5 @@
 /* BASICS */
+html, body {margin:0;padding:0;height:100%;}
 
 .CodeMirror {
   /* Set height, width, borders, and global font properties here */
@@ -371,16 +372,39 @@ body {
   padding-left: 5px;
   margin-top: -2px;
 }
-.error-container {
+.help-container {
   flex: 1;
-  display: none;
-  flex-flow: column;
+  display: flex;
+  flex-flow: row;
+  min-height: 0;
+  flex-direction: row;
 }
-.error-container div {
-  display: inline;
+.help-container div {
+  flex: 1;
   background-color: #dcdcdc;
+  display: flex;
+  position: relative;
 }
-.error-container textarea {
+.help-container #error{
+  display: none;
+} 
+.help-container #stdout{
+  display: none;
+}
+
+.help-container #error textarea {
+  width: 100%;
   flex: 1;
-  resize: none;
+}
+
+.help-container #stdout{
+  padding: 5px;
+  flex-direction: column;
+}
+.help-container #stdout .error{
+  color: red;
+}
+.help-container #stdout p{
+  display: block;
+  margin: 0;
 }

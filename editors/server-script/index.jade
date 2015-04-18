@@ -5,14 +5,19 @@ html
     link(rel='stylesheet', href='index.css')
   body
     .topBar
-      button#runscript Run
+      button#runscript Run 
       button#killscript Kill
+
+      span(style='font-weight:bold;')  Status : 
+        span(style='font-weight:normal;')#status
     .code-editor-container
       textarea.code-editor
-    .error-container
-      div
-        button Close
-      textarea(disabled='')
+    .help-container
+      div#error
+        textarea(disabled='')
+      div#stdout
+        
+
     script(src='/core/SupCore.js')
     script(src='../../data.js')
     script(src='/system/SupEngine.js')

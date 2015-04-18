@@ -21,9 +21,22 @@ start = ->
   socket.on 'disconnect', SupClient.onDisconnected
   socket.on 'edit:assets', onAssetEdited
   socket.on 'trash:assets', SupClient.onAssetTrashed
+  socket.on "script-status:#{info.assetId}", (data) ->
+    document.querySelector('#status').textContent = data
+
   socket.on "stdout:#{info.assetId}", (data) ->
-    content += data + "<br>";
-    window.open('data:text/html;charset=utf-8,'+ content, 'server')
+    doc = document.querySelector('.help-container #stdout')
+    p = document.createElement 'p'
+    p.textContent = data
+    doc.appendChild p
+    doc.style.display = 'flex'
+  socket.on "stderr:#{info.assetId}", (data) ->
+    doc = document.querySelector('.help-container #stdout')
+    p = document.createElement 'p'
+    p.addClass 'error'
+    p.textContent = data
+    doc.appendChild p
+    doc.style.display = 'flex'
 
 
   SupClient.setupHotkeys()
@@ -76,11 +89,11 @@ start = ->
 
   ui.editor.on 'changes', onEditText
 
-  ui.errorContainer = document.querySelector('.error-container')
-  ui.errorContainer.querySelector('button').addEventListener "click", =>
-    ui.errorContainer.style.display = "none"
-    ui.editor.refresh()
-    return
+  ui.errorContainer = document.querySelector('.help-container #error')
+  # ui.errorContainer.querySelector('button').addEventListener "click", =>
+  #   ui.errorContainer.style.display = "none"
+  #   ui.editor.refresh()
+  #   return
 
   ui.editor.focus()
 
@@ -113,11 +126,9 @@ onAssetEdited = (id, command, args...) ->
 onAssetCommands = {}
 
 onRunClick = () ->
-  buildingHTML = 'data:text/html;charset=utf-8,<body><div>Building server...</div><style>body { display: flex; align-items: center; justify-content: center; font-family: Arial; }</style></body>';
-  wo = window.open(buildingHTML, 'server')
+  document.querySelector('#status').textContent = 'Building'
   socket.emit 'edit:assets', info.assetId, 'buildScript',(data) -> #RALMN STOP OUBLIER LE PUTAIN DE S ASSETS
-    content += data + "<br>"
-    wo = window.open('data:text/html;charset=utf-8,'+content, 'server')
+    document.querySelector('#status').textContent = data
   return
 
 

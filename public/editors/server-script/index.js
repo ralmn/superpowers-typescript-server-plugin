@@ -42,9 +42,25 @@ start = function() {
   socket.on('disconnect', SupClient.onDisconnected);
   socket.on('edit:assets', onAssetEdited);
   socket.on('trash:assets', SupClient.onAssetTrashed);
+  socket.on("script-status:" + info.assetId, function(data) {
+    return document.querySelector('#status').textContent = data;
+  });
   socket.on("stdout:" + info.assetId, function(data) {
-    content += data + "<br>";
-    return window.open('data:text/html;charset=utf-8,' + content, 'server');
+    var doc, p;
+    doc = document.querySelector('.help-container #stdout');
+    p = document.createElement('p');
+    p.textContent = data;
+    doc.appendChild(p);
+    return doc.style.display = 'flex';
+  });
+  socket.on("stderr:" + info.assetId, function(data) {
+    var doc, p;
+    doc = document.querySelector('.help-container #stdout');
+    p = document.createElement('p');
+    p.addClass('error');
+    p.textContent = data;
+    doc.appendChild(p);
+    return doc.style.display = 'flex';
   });
   SupClient.setupHotkeys();
   window.addEventListener("message", (function(_this) {
@@ -124,13 +140,7 @@ start = function() {
     };
   })(this));
   ui.editor.on('changes', onEditText);
-  ui.errorContainer = document.querySelector('.error-container');
-  ui.errorContainer.querySelector('button').addEventListener("click", (function(_this) {
-    return function() {
-      ui.errorContainer.style.display = "none";
-      ui.editor.refresh();
-    };
-  })(this));
+  ui.errorContainer = document.querySelector('.help-container #error');
   ui.editor.focus();
   document.querySelector("#runscript").addEventListener('click', onRunClick);
   return document.querySelector("#killscript").addEventListener('click', function() {
@@ -167,12 +177,9 @@ onAssetEdited = function() {
 onAssetCommands = {};
 
 onRunClick = function() {
-  var buildingHTML, wo;
-  buildingHTML = 'data:text/html;charset=utf-8,<body><div>Building server...</div><style>body { display: flex; align-items: center; justify-content: center; font-family: Arial; }</style></body>';
-  wo = window.open(buildingHTML, 'server');
+  document.querySelector('#status').textContent = 'Building';
   socket.emit('edit:assets', info.assetId, 'buildScript', function(data) {
-    content += data + "<br>";
-    return wo = window.open('data:text/html;charset=utf-8,' + content, 'server');
+    return document.querySelector('#status').textContent = data;
   });
 };
 

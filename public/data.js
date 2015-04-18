@@ -14634,7 +14634,7 @@ module.exports = ServerScriptAsset = (function(superClass) {
     })(this);
     compile = (function(_this) {
       return function() {
-        var baseTypeNode, behaviors, e, error, libSourceFile, member, memberName, modifierFlags, ownErrors, properties, ref, ref1, ref2, results, symbol, symbolName, type, typeName, typeSymbol;
+        var e, error, libSourceFile, ownErrors, results;
         try {
           results = compileTypeScript(scriptNames, scripts, globalDefs + "declare var console", {
             sourceMap: false
@@ -14670,51 +14670,7 @@ module.exports = ServerScriptAsset = (function(superClass) {
           return;
         }
         libSourceFile = results.program.getSourceFile("lib.d.ts");
-        behaviors = {};
-        ref = results.program.getSourceFile(ownScriptName).locals;
-        for (symbolName in ref) {
-          symbol = ref[symbolName];
-          if ((symbol.flags & ts.SymbolFlags.Class) !== ts.SymbolFlags.Class) {
-            continue;
-          }
-          baseTypeNode = ts.getClassBaseTypeNode(symbol.valueDeclaration);
-          if (baseTypeNode == null) {
-            continue;
-          }
-          typeSymbol = results.typeChecker.getSymbolAtLocation(baseTypeNode.typeName);
-          if (typeSymbol !== supTypeSymbols["Sup.Behavior"]) {
-            continue;
-          }
-          properties = behaviors[symbolName] = [];
-          ref1 = symbol.members;
-          for (memberName in ref1) {
-            member = ref1[memberName];
-            if ((member.flags & ts.SymbolFlags.Property) !== ts.SymbolFlags.Property) {
-              continue;
-            }
-            modifierFlags = (ref2 = member.valueDeclaration.modifiers) != null ? ref2.flags : void 0;
-            if ((modifierFlags != null) && (modifierFlags & (ts.NodeFlags.Private | ts.NodeFlags.Protected | ts.NodeFlags.Static)) !== 0) {
-              continue;
-            }
-            type = results.typeChecker.getTypeAtLocation(member.valueDeclaration);
-            typeName = null;
-            symbol = type.getSymbol();
-            if (type.intrinsicName != null) {
-              typeName = type.intrinsicName;
-            }
-            if (typeName != null) {
-              properties.push({
-                name: memberName,
-                type: typeName
-              });
-            }
-          }
-        }
-        _this.serverData.resources.acquire('behaviorProperties', null, function(err, behaviorProperties) {
-          behaviorProperties.setScriptBehaviors(_this.id, behaviors);
-          _this.serverData.resources.release('behaviorProperties', null);
-          finish([]);
-        });
+        finish([]);
       };
     })(this);
     remainingAssetsToLoad = Object.keys(this.serverData.entries.byId).length;
@@ -14752,11 +14708,11 @@ module.exports = ServerScriptAsset = (function(superClass) {
   };
 
   ServerScriptAsset.prototype.server_buildScript = function(client, callback) {
-    var code, combinedSourceMap, comment, concatenatedGlobalDefs, convertedSourceMap, def, error, errorstr, file, getLineCounts, globalNames, globals, j, jsGlobals, k, l, len, len1, len2, line, name, ref, ref1, ref2, ref3, ref4, results, scriptNames, scripts;
+    var code, combinedSourceMap, comment, concatenatedGlobalBuildDefs, convertedSourceMap, def, error, errorstr, file, getLineCounts, globalBuildDefs, globalNames, globals, j, jsGlobals, k, l, len, len1, len2, line, name, ref, ref1, ref2, ref3, ref4, results, scriptNames, scripts;
     console.log("Compiling scripts...");
     globalNames = [];
     globals = {};
-    globalDefs = {};
+    globalBuildDefs = {};
     scriptNames = [];
     scripts = {};
     ref = SupAPI.contexts["typescript-server"].plugins;
@@ -14770,12 +14726,12 @@ module.exports = ServerScriptAsset = (function(superClass) {
         globals[pluginName + ".ts"] = plugin.code;
       }
       if (plugin.defs != null) {
-        globalDefs[pluginName + ".d.ts"] = plugin.defs;
+        globalBuildDefs[pluginName + ".d.ts"] = plugin.defs;
       }
     }
     globalNames.push("server-script.ts");
     globals["server-script.ts"] = this.pub.text;
-    jsGlobals = compileTypeScript(globalNames, globals, globalDefs["lib.d.ts"] + "\n" + globalDefs["node.d.ts"] + "\ndeclare var console, SupEngine, SupRuntime, ioServer", {
+    jsGlobals = compileTypeScript(globalNames, globals, globalBuildDefs["lib.d.ts"] + "\n" + globalBuildDefs["node.d.ts"] + "\ndeclare var console, SupEngine, SupRuntime, ioServer", {
       sourceMap: false
     });
     if (jsGlobals.errors.length > 0) {
@@ -14789,16 +14745,16 @@ module.exports = ServerScriptAsset = (function(superClass) {
       callback(errorstr);
       return;
     }
-    concatenatedGlobalDefs = ((function() {
+    concatenatedGlobalBuildDefs = ((function() {
       var results1;
       results1 = [];
-      for (name in globalDefs) {
-        def = globalDefs[name];
+      for (name in globalBuildDefs) {
+        def = globalBuildDefs[name];
         results1.push(def);
       }
       return results1;
     })()).join('');
-    results = compileTypeScript(scriptNames, scripts, concatenatedGlobalDefs, {
+    results = compileTypeScript(scriptNames, scripts, concatenatedGlobalBuildDefs, {
       sourceMap: true
     });
     if (results.errors.length > 0) {
@@ -14872,7 +14828,7 @@ module.exports = ServerScriptAsset = (function(superClass) {
 
   ServerScriptAsset.prototype.server_killScript = function(client, callback) {
     if (this.child != null) {
-      client.socket.emit("stdout:" + this.id, "Kill by user");
+      client.socket.emit("script-status:" + this.id, "Kill by user");
       this.child.kill("SIGHUP");
       return callback(null);
     } else {
